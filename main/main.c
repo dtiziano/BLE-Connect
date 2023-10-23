@@ -17,6 +17,8 @@ char *TAG = "BLE-Server";
 uint8_t ble_addr_type;
 void ble_app_advertise(void);
 
+char data_string[32];
+
 // Write data to ESP32 defined as server
 static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
@@ -51,7 +53,9 @@ static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_g
 // Read data from ESP32 defined as server
 static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
-    os_mbuf_append(ctxt->om, "Data from the server", strlen("Data from the server"));
+    sprintf(data_string, "Time is %li", xTaskGetTickCount());
+    ESP_LOGI(TAG, "%s", data_string);
+    os_mbuf_append(ctxt->om, data_string, strlen(data_string));
     return 0;
 }
 
@@ -131,8 +135,18 @@ void host_task(void *param)
     nimble_port_run(); // This function will return only when nimble_port_stop() is executed
 }
 
+void hello_task(void *pvParameter)
+{
+	while(1)
+	{
+	    ESP_LOGI(TAG, "Hello world!\n");
+	    vTaskDelay(100 / portTICK_PERIOD_MS);
+	}
+}
+
 void app_main()
 {
+    xTaskCreate(&hello_task, "hello_task", 2048, NULL, 5, NULL);
     nvs_flash_init();                          // 1 - Initialize NVS flash using
     // esp_nimble_hci_and_controller_init();      // 2 - Initialize ESP controller
     nimble_port_init();                        // 3 - Initialize the host stack
@@ -143,4 +157,5 @@ void app_main()
     ble_gatts_add_svcs(gatt_svcs);             // 4 - Initialize NimBLE configuration - queues gatt services.
     ble_hs_cfg.sync_cb = ble_app_on_sync;      // 5 - Initialize application
     nimble_port_freertos_init(host_task);      // 6 - Run the thread
+    ESP_LOGI(TAG, "Reached end of main");
 }
