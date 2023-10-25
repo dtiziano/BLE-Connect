@@ -19,31 +19,28 @@ void ble_app_advertise(void);
 
 char data_string[32];
 
+volatile bool WiFiStat = false;
 // Write data to ESP32 defined as server
 static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     // printf("Data from the client: %.*s\n", ctxt->om->om_len, ctxt->om->om_data);
 
-    char * data = (char *)ctxt->om->om_data;
-    printf("%d\n",strcmp(data, (char *)"LIGHT ON")==0);
-    if (strcmp(data, (char *)"LIGHT ON\0")==0)
+    char data[ctxt->om->om_len+2]; // = (char *)ctxt->om->om_data;
+    sprintf(data,"%.*s\n", ctxt->om->om_len, ctxt->om->om_data);
+    ESP_LOGI(TAG,"Data from the client: %s\n", data);
+    sprintf(data,"%.*s\n", ctxt->om->om_len, ctxt->om->om_data);
+    if (strcmp(data, (char *)"W ON\n") == 0)
     {
-       printf("LIGHT ON\n");
+        WiFiStat = true;
+        ESP_LOGI(TAG,"WiFi ON\n");
     }
-    else if (strcmp(data, (char *)"LIGHT OFF\0")==0)
+    else if (strcmp(data, (char *)"W OFF\n") == 0)
     {
-        printf("LIGHT OFF\n");
-    }
-    else if (strcmp(data, (char *)"FAN ON\0")==0)
-    {
-        printf("FAN ON\n");
-    }
-    else if (strcmp(data, (char *)"FAN OFF\0")==0)
-    {
-        printf("FAN OFF\n");
+        WiFiStat = false;
+        ESP_LOGI(TAG,"WiFi OFF\n");
     }
     else{
-        printf("Data from the client: %.*s\n", ctxt->om->om_len, ctxt->om->om_data);
+        ESP_LOGI(TAG, "Command not recognised");
     }
     
     
@@ -90,6 +87,10 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg)
     // Advertise again after completion of the event
     case BLE_GAP_EVENT_DISCONNECT:
         ESP_LOGI("GAP", "BLE GAP EVENT DISCONNECTED");
+        if (event->connect.status != 0)
+        {
+            ble_app_advertise(); // to allow a reconnection
+        }
         break;
     case BLE_GAP_EVENT_ADV_COMPLETE:
         ESP_LOGI("GAP", "BLE GAP EVENT");
@@ -137,10 +138,26 @@ void host_task(void *param)
 
 void hello_task(void *pvParameter)
 {
+    bool _lastWiFiStat = false;
 	while(1)
 	{
-	    ESP_LOGI(TAG, "Hello world!\n");
-	    vTaskDelay(100 / portTICK_PERIOD_MS);
+        if(WiFiStat != _lastWiFiStat)
+        {
+            _lastWiFiStat = WiFiStat;
+            if(WiFiStat)
+            {
+                ESP_LOGI(TAG, "Wifi Status Changed, turning it ON");
+            }else
+            {
+                ESP_LOGI(TAG, "Wifi Status Changed, turning it OFF");
+            }
+            
+        }else
+        {
+            ESP_LOGI(TAG, ".");
+        }
+	    
+	    vTaskDelay(2000 / portTICK_PERIOD_MS);
 	}
 }
 
